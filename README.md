@@ -1,5 +1,11 @@
 # CLI import of ICS files
 
+# TL;DR
+
+```shell
+docker run -it --rm pschmitt/gcal-import-ics
+```
+
 # Installation
 
 ```shell

@@ -3,7 +3,7 @@ FROM python:3-alpine
 ADD ./requirements.txt /app/requirements.txt
 
 RUN pip3 install -r /app/requirements.txt && \
-  adduser -D gcal
+  adduser -D -u 1099 gcal
 
 ENV TZ=UTC
 VOLUME ["/config"]

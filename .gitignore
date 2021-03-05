@@ -1,0 +1,8 @@
+.envrc
+*.ics
+client_secret*
+*token*
+credentials/
+.venv
+*.bak
+*credentials*

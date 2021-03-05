@@ -45,6 +45,10 @@ python3 gcal_import.py \
   "$ICS_FILE_OR_URL"
 ```
 
+# But why?
+
+https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
+
 # TODO
 
 - [ ] 🚧 Fix status for some imported events (they are created with status=cancelled)

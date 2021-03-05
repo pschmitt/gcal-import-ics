@@ -229,6 +229,7 @@ def import_events(gcal, file, proxy=None):
 
 
 def delete_other_events(gcal, imported_events, include_past_events=False):
+    deleted_count = 0
     # Fetch all future events
     events = list(
         gcal.get_events(time_min=datetime.now(), time_max=datetime(3000, 1, 1))
@@ -241,6 +242,8 @@ def delete_other_events(gcal, imported_events, include_past_events=False):
         if ev.other["iCalUID"] not in imported_uids:
             LOGGER.warning(f"🕵️  Fringe event found: {ev.summary}. Deleting it!")
             gcal.delete_event(ev)
+            deleted_count = deleted_count + 1
+    return deleted_count
 
 
 def parse_args():
@@ -297,19 +300,22 @@ def main():
         token_path=args.token,
     )
 
+    # FIXME Check the ICS file/url first.
     # Clear?
     if args.clear:
         deleted = gcal_clear(gcal)
-        LOGGER.warning(f"Deleted {deleted} events")
+        LOGGER.warning(f"✂️ Deleted {deleted} events")
 
     # Import
     events = import_events(gcal, args.ICS_FILE, proxy=args.proxy)
+    LOGGER.info(f"ℹ️ Imported/updated  {len(events)} events")
 
     if args.delete:
         if events:
-            delete_other_events(gcal, events)
+            deleted = delete_other_events(gcal, events)
+            LOGGER.warning(f"✂️ Deleted {count} fringe events")
         else:
-            LOGGER.error(f"🚨 No event was imported. Skip deletion")
+            LOGGER.error(f"🚨 No event was imported. Deletion of fringe events was skipped.")
     return events
 
 

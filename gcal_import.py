@@ -285,38 +285,11 @@ def main():
     args = parse_args()
 
     logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.CRITICAL)
-    # level_style = {
-    #     "critical": {"bold": True, "color": "red"},
-    #     "debug": {"color": 25},
-    #     "error": {"color": "red"},
-    #     "info": {"color": "blue"},
-    #     "notice": {"color": "blue"},
-    #     "spam": {"color": "green", "faint": True},
-    #     "success": {"bold": True, "color": "green"},
-    #     "verbose": {"color": "gray"},
-    #     "warning": {"color": "yellow"},
-    # }
-    # field_style = {
-    #     "asctime": {"color": "green"},
-    #     "hostname": {"color": "magenta"},
-    #     "levelname": {"bold": True, "color": "black"},
-    #     "name": {"color": "blue"},
-    #     "programname": {"color": "cyan"},
-    #     "username": {"color": "yellow"},
-    #     "message": {"color": "white"},
-    # }
     coloredlogs.install(
         level="DEBUG" if args.debug else "INFO",
         logger=LOGGER,
         fmt="[%(asctime)s] %(name)s %(levelname)s %(message)s",
-        # level_style=level_style,
-        # field_style=field_style
     )
-    # LOGGER.debug("DEBUG")
-    # LOGGER.info("INFO")
-    # LOGGER.warning("WARN")
-    # LOGGER.error("ERROR")
-    # return
 
     gcal = GoogleCalendar(
         calendar=args.CALENDAR_ID,
@@ -328,7 +301,6 @@ def main():
     if args.clear:
         deleted = gcal_clear(gcal)
         LOGGER.warning(f"Deleted {deleted} events")
-        # return
 
     # Import
     events = import_events(gcal, args.ICS_FILE, proxy=args.proxy)

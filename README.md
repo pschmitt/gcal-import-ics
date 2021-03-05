@@ -24,8 +24,6 @@ You will need the following:
 ```shell
 python3 gcal_import.py \
   --debug \
-  --delete \
-  --clear \
   -c ./credentials/client_secret_blablablabla.apps.googleusercontent.com.json \
   -t ./credentials/gcal.token \
   -p "PROXY=socks5h://corp.acme.com:8080" \

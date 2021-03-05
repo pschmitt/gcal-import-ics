@@ -308,7 +308,7 @@ def main():
 
     # Import
     events = import_events(gcal, args.ICS_FILE, proxy=args.proxy)
-    LOGGER.info(f"ℹ️ Imported/updated  {len(events)} events")
+    LOGGER.info(f"ℹ️ Imported/updated {len(events)} events")
 
     if args.delete:
         if events:

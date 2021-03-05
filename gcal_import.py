@@ -313,7 +313,7 @@ def main():
     if args.delete:
         if events:
             deleted = delete_other_events(gcal, events)
-            LOGGER.warning(f"✂️ Deleted {count} fringe events")
+            LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
         else:
             LOGGER.error(f"🚨 No event was imported. Deletion of fringe events was skipped.")
     return events

@@ -62,3 +62,4 @@ https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
 - [ ] Store metadata ("imported by gcal_import.py") somewhere (in source? organizer? description?)
 - [x] Clear calendar before import (optional)
 - [ ] Wait and retry when rate-limitted
+- [ ] Optionally ignore SEQUENCE and always update

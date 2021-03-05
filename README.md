@@ -1,5 +1,7 @@
 # CLI import of ICS files
 
+[![Build](https://github.com/pschmitt/gcal-import-ics/actions/workflows/build.yaml/badge.svg)](https://github.com/pschmitt/gcal-import-ics/actions/workflows/build.yaml)
+
 # TL;DR
 
 ```shell

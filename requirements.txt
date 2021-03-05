@@ -2,5 +2,5 @@ colorama
 coloredlogs
 # gcsa
 git+https://github.com/pschmitt/google-calendar-simple-api@import-event
-ics
+icalendar
 requests[socks]

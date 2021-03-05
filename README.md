@@ -14,6 +14,8 @@ docker run -it --rm \
     /data/calendar.ics
 ```
 
+and the main star of the show is [🌟 gcal_import.py](./gcal_import.py)
+
 # Installation
 
 ```shell

@@ -1,4 +1,4 @@
-# Import ICS files to your Google Calendar, from CLI.
+# 📅 Import ICS files to your Google Calendar, without the web interface.
 
 [![Build](https://github.com/pschmitt/gcal-import-ics/actions/workflows/build.yaml/badge.svg)](https://github.com/pschmitt/gcal-import-ics/actions/workflows/build.yaml)
 

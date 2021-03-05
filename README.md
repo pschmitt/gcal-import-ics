@@ -5,7 +5,13 @@
 # TL;DR
 
 ```shell
-docker run -it --rm pschmitt/gcal-import-ics
+docker run -it --rm \
+  -e "TZ=Europe/Berlin" \
+  -v "$PWD/config:/config" \
+  -v "$PWD/data:/data:ro" \
+  pschmitt/gcal-import-ics:latest \
+    c_randomCalendarId@group.calendar.google.com \
+    /data/calendar.ics
 ```
 
 # Installation

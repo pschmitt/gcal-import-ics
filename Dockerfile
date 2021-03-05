@@ -5,7 +5,7 @@ ADD ./requirements.txt /app/requirements.txt
 RUN pip3 install -r /app/requirements.txt && \
   adduser -D -u 1099 gcal
 
-ENV TZ=UTC
+ENV TZ=UTC INTERVAL=
 VOLUME ["/config"]
 WORKDIR /app
 

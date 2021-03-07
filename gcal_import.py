@@ -9,10 +9,10 @@ from pprint import pformat
 
 import coloredlogs
 import icalendar
-from googleapiclient.errors import HttpError as GoogleHttpError
 import requests
 from gcsa.event import Event as GoogleCalendarEvent
 from gcsa.google_calendar import GoogleCalendar
+from googleapiclient.errors import HttpError as GoogleHttpError
 
 LOGGER = logging.getLogger("gcal-ics-import")
 

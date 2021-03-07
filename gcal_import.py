@@ -81,7 +81,7 @@ def gcal_compare(event1, event2, ignore_sequence=False):
     return True
 
 
-def import_events(gcal, file, proxy=None):
+def import_events(gcal, file, proxy=None, ignore_sequence=False):
     if re.match("https?://.*", file):
         rq_proxies = (
             {
@@ -135,8 +135,11 @@ def import_events(gcal, file, proxy=None):
 
             LOGGER.debug(f"SEQUENCE ICS: {sequence} - GCAL: {gcal_sequence}")
 
-            if sequence > gcal_sequence:
-                LOGGER.info("😱 SEQUENCE incremented. Event will be updated.")
+            if sequence > gcal_sequence or ignore_sequence:
+                if sequence > gcal_sequence:
+                    LOGGER.info("😱 SEQUENCE incremented. Event will be updated.")
+                else:
+                    LOGGER.info("SEQUENCE comparison skipped. Updating event.")
 
                 gcal_event.other["sequence"] = sequence
                 gcal_event.other["status"] = status
@@ -264,6 +267,15 @@ def parse_args():
         "-p", "--proxy", required=False, help="PROXY to use to fetch the ICS"
     )
     parser.add_argument(
+        "-I",
+        "--ignore-sequence",
+        required=False,
+        action="store_true",
+        default=False,
+        help="Skip sequence comparison (always update events)",
+    )
+
+    parser.add_argument(
         "-C",
         "--clear",
         required=False,
@@ -307,7 +319,9 @@ def main():
         LOGGER.warning(f"✂️ Deleted {deleted} events")
 
     # Import
-    events = import_events(gcal, args.ICS_FILE, proxy=args.proxy)
+    events = import_events(
+        gcal, args.ICS_FILE, proxy=args.proxy, ignore_sequence=args.ignore_sequence
+    )
     LOGGER.info(f"ℹ️ Imported/updated {len(events)} events")
 
     if args.delete:
@@ -315,7 +329,10 @@ def main():
             deleted = delete_other_events(gcal, events)
             LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
         else:
-            LOGGER.error(f"🚨 No event was imported. Deletion of fringe events was skipped.")
+            LOGGER.error(
+                f"🚨 No event was imported. Deletion of fringe events was skipped."
+            )
+            return
     return events
 
 

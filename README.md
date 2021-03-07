@@ -63,4 +63,4 @@ https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
 - [x] Clear calendar before import (optional)
 - [ ] Wait and retry when rate-limitted
 - [x] Optionally ignore SEQUENCE and always update
-- [ ] Allow passing in the calendar name, instead of the ID
+- [x] Allow passing in the calendar name, instead of the ID

@@ -291,7 +291,7 @@ def parse_args():
         default=False,
         help="Delete future events that are not in the provided ICS file",
     )
-    parser.add_argument("CALENDAR_ID")
+    parser.add_argument("CALENDAR")
     parser.add_argument("ICS_FILE")
     return parser.parse_args()
 
@@ -307,10 +307,28 @@ def main():
     )
 
     gcal = GoogleCalendar(
-        calendar=args.CALENDAR_ID,
+        # calendar=args.CALENDAR,
         credentials_path=args.credentials,
         token_path=args.token,
     )
+
+    # Set calendar ID
+    if re.match(".+@group.calendar.google.com", args.CALENDAR):
+        calendar_id = args.CALENDAR
+    else:
+        # Find calendar ID
+        calendars = [
+            x.get("id")
+            for x in gcal.service.calendarList().list().execute().get("items")
+            if x.get("summary") == args.CALENDAR
+        ]
+        if not calendars:
+            LOGGER.critical(f"Could not find any calendar named {args.CALENDAR}")
+            sys.exit(1)
+        calendar_id = calendars[0]
+
+    gcal.calendar = calendar_id
+    LOGGER.debug(f"CALENDAR ID: {calendar_id}")
 
     # FIXME Check the ICS file/url first.
     # Clear?

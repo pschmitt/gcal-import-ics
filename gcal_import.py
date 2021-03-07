@@ -141,7 +141,12 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 else:
                     LOGGER.info("SEQUENCE comparison skipped. Updating event.")
 
-                gcal_event.other["sequence"] = sequence
+                # Use gcal sequence in case ignore_sequence is set here
+                # Otherwise the API will return an error if
+                # sequence < gcal_sequence
+                gcal_event.other["sequence"] = (
+                    gcal_sequence if ignore_sequence else sequence
+                )
                 gcal_event.other["status"] = status
 
                 gcal_event.summary = summary

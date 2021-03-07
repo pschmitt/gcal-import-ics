@@ -2,14 +2,14 @@
 
 import argparse
 import logging
-import os
 import re
 import sys
 from datetime import datetime
-from pprint import pformat, pprint
+from pprint import pformat
 
 import coloredlogs
 import icalendar
+from googleapiclient.errors import HttpError as GoogleHttpError
 import requests
 from gcsa.event import Event as GoogleCalendarEvent
 from gcsa.google_calendar import GoogleCalendar
@@ -41,11 +41,14 @@ def gcal_clear(gcal):
     for event in res:
         try:
             gcal.delete_event(event)
-        except Exception as exc:
+        except GoogleHttpError as exc:
             # Ignore 'Resource has been deleted' exceptions
-            if exc.resp["status"] != "410":  # 410: Gone -> "Resource has been deleted"
+            if (
+                exc.resp["status"] != "410"
+            ):  # 410: Gone -> "Resource has been deleted"
                 LOGGER.error(
-                    f"Exception caught while deleting: {exc.error_details}\n{exc}"
+                    f"Exception caught while deleting: {exc.error_details}\n"
+                    f"{exc}"
                 )
                 raise exc
         deleted = deleted + 1
@@ -93,7 +96,9 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
         )
 
         LOGGER.info(f"Fetching ICS file from {file} (proxy: {proxy})")
-        ical = icalendar.Calendar.from_ical(requests.get(file, proxies=rq_proxies).text)
+        ical = icalendar.Calendar.from_ical(
+            requests.get(file, proxies=rq_proxies).text
+        )
     else:
         with open(file) as f:
             ical = icalendar.Calendar.from_ical(f.read())
@@ -124,7 +129,8 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
         )
 
         LOGGER.info(
-            f'Processing ICS event "{summary}"\nUID: {ical_uid}\nRRULE: {rrule}'
+            f'Processing ICS event "{summary}"\n'
+            f"UID: {ical_uid}\nRRULE: {rrule}"
         )
 
         gcal_event = gcal_get_event(gcal, ical_uid)
@@ -137,7 +143,9 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
 
             if sequence > gcal_sequence or ignore_sequence:
                 if sequence > gcal_sequence:
-                    LOGGER.info("😱 SEQUENCE incremented. Event will be updated.")
+                    LOGGER.info(
+                        "😱 SEQUENCE incremented. Event will be updated."
+                    )
                 else:
                     LOGGER.info("SEQUENCE comparison skipped. Updating event.")
 
@@ -160,19 +168,23 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                     gcal_event.recurrence = [rrule]
 
                 updated_event = gcal.update_event(gcal_event)
-                if gcal_compare(gcal_event, updated_event, ignore_sequence=True):
-                    LOGGER.info(f"✅ Event updated successfully")
+                if gcal_compare(
+                    gcal_event, updated_event, ignore_sequence=True
+                ):
+                    LOGGER.info("✅ Event updated successfully")
                 else:
-                    LOGGER.warning(f"❗ Event did not update correctly")
+                    LOGGER.warning("❗ Event did not update correctly")
                 gcal_imported_events.append(updated_event)
             elif gcal_sequence > sequence:
-                LOGGER.info(f"⏩ The Google Calendar entry has a higher SEQUENCE. Skip.")
+                LOGGER.info(
+                    "⏩ The Google Calendar entry has a higher SEQUENCE. Skip."
+                )
                 gcal_imported_events.append(gcal_event)
             else:
                 LOGGER.info(f"⏩ Same sequence number ({sequence}). Skip.")
                 gcal_imported_events.append(gcal_event)
         else:
-            LOGGER.info(f"No gcal event found. Creating a new one")
+            LOGGER.info("No gcal event found. Creating a new one")
             # TODO Create event
             gcal_event = GoogleCalendarEvent(
                 iCalUID=ical_uid,
@@ -194,12 +206,17 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
 
                 if not gcal_compare(gcal_event, res):
                     LOGGER.warning(
-                        "❗ The event was not created as intended. Let's update it."
+                        "❗ The event was not created as intended."
+                        "Let's update it."
                     )
                     LOGGER.debug(
                         "GOOGLE CALENDAR API RESULT:\n"
                         + pformat(
-                            {k: v for (k, v) in vars(res).items() if k != "description"}
+                            {
+                                k: v
+                                for (k, v) in vars(res).items()
+                                if k != "description"
+                            }
                         )
                     )
                     res.summary = summary
@@ -230,7 +247,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                     LOGGER.info("✅ Created event sucessfully")
                 gcal_imported_events.append(res)
             except:
-                LOGGER.error(f"🚨 Failed to create event")
+                LOGGER.error("🚨 Failed to create event")
                 raise
 
     return gcal_imported_events
@@ -238,17 +255,18 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
 
 def delete_other_events(gcal, imported_events, include_past_events=False):
     deleted_count = 0
-    # Fetch all future events
-    events = list(
-        gcal.get_events(time_min=datetime.now(), time_max=datetime(3000, 1, 1))
-    )
+    min = datetime(1970, 1, 1) if include_past_events else datetime.now()
+    # Fetch all events
+    events = list(gcal.get_events(time_min=min, time_max=datetime(3000, 1, 1)))
 
     imported_uids = [x.other["iCalUID"] for x in imported_events]
 
     for ev in events:
         LOGGER.debug(f"Event ID: {ev.other['iCalUID']}")
         if ev.other["iCalUID"] not in imported_uids:
-            LOGGER.warning(f"🕵️  Fringe event found: {ev.summary}. Deleting it!")
+            LOGGER.warning(
+                f"🕵️  Fringe event found: {ev.summary}. Deleting it!"
+            )
             gcal.delete_event(ev)
             deleted_count = deleted_count + 1
     return deleted_count
@@ -267,7 +285,9 @@ def parse_args():
     parser.add_argument(
         "-c", "--credentials", required=True, help="Path to credentials file"
     )
-    parser.add_argument("-t", "--token", required=True, help="Path to token file")
+    parser.add_argument(
+        "-t", "--token", required=True, help="Path to token file"
+    )
     parser.add_argument(
         "-p", "--proxy", required=False, help="PROXY to use to fetch the ICS"
     )
@@ -304,7 +324,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.CRITICAL)
+    logging.getLogger("googleapiclient.discovery_cache").setLevel(
+        logging.CRITICAL
+    )
     coloredlogs.install(
         level="DEBUG" if args.debug else "INFO",
         logger=LOGGER,
@@ -328,7 +350,9 @@ def main():
             if x.get("summary") == args.CALENDAR
         ]
         if not calendars:
-            LOGGER.critical(f"Could not find any calendar named {args.CALENDAR}")
+            LOGGER.critical(
+                f"Could not find any calendar named {args.CALENDAR}"
+            )
             sys.exit(1)
         calendar_id = calendars[0]
 
@@ -343,7 +367,10 @@ def main():
 
     # Import
     events = import_events(
-        gcal, args.ICS_FILE, proxy=args.proxy, ignore_sequence=args.ignore_sequence
+        gcal,
+        args.ICS_FILE,
+        proxy=args.proxy,
+        ignore_sequence=args.ignore_sequence,
     )
     LOGGER.info(f"ℹ️ Imported/updated {len(events)} events")
 
@@ -353,7 +380,8 @@ def main():
             LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
         else:
             LOGGER.error(
-                f"🚨 No event was imported. Deletion of fringe events was skipped."
+                "🚨 No event was imported."
+                "Deletion of fringe events was skipped."
             )
             return
     return events

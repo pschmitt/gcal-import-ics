@@ -154,22 +154,30 @@ def read_ics(file, proxy=None):
         ics_text = requests.get(file, proxies=rq_proxies).text
     else:
         with open(file) as f:
-            ics_text = icalendar.Calendar.from_ical(f.read())
-    return icalendar.Calendar.from_ical(ics_text)
+            ics_text = f.read()
+
+    ical = icalendar.Calendar.from_ical(ics_text)
+    events = []
+
+    for item in ical.walk():
+        # Skip non-events
+        if item.name != "VEVENT":
+            LOGGER.debug(f"Not an event ({item.name}). Skip this ical item.")
+            continue
+        events.append(item)
+    return events
 
 
 def import_events(gcal, file, proxy=None, dry_run=False):
-    gcal_changes = {"updated": [], "created": [], "untouched": []}
-    ical = read_ics(file, proxy)
+    gcal_changes = {
+        "updated": [],
+        "created": [],
+        "untouched": [],
+        "duplicates": [],
+    }
+    processed_uids = []
 
-    for ical_event in ical.walk():
-        # Skip non-events
-        if ical_event.name != "VEVENT":
-            LOGGER.debug(
-                f"Not an event ({ical_event.name}). Skip this ical item."
-            )
-            continue
-
+    for ical_event in read_ics(file, proxy):
         # Metadata
         ical_uid = str(ical_event.get("UID"))
         # sequence = int(ical_event.get("SEQUENCE", 0))
@@ -190,6 +198,13 @@ def import_events(gcal, file, proxy=None, dry_run=False):
 
         LOGGER.info(f'Processing ICS event "{summary}"\n')
         LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
+
+        # Check if we already processed this iCalUID
+        if ical_uid in processed_uids:
+            LOGGER.info("Duplicate UID detected. Skip item.")
+            gcal_changes.get("duplicates").append(ical_uid)
+            continue
+        processed_uids.append(ical_uid)
 
         # Create a new Event object
         gcal_ics_event = GoogleCalendarEvent(
@@ -449,7 +464,8 @@ def main():
     LOGGER.info(
         f"ℹ️ Imported {len(events['created'])} and "
         f"updated {len(events['updated'])} events. "
-        f"Left {len(events['untouched'])} events untouched"
+        f"Left {len(events['untouched'])} events untouched. "
+        f"Duplicates count: {len(events['duplicates'])}"
     )
 
     if args.delete:

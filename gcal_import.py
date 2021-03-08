@@ -136,10 +136,8 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
             else None
         )
 
-        LOGGER.info(
-            f'Processing ICS event "{summary}"\n'
-            f"UID: {ical_uid}\nRRULE: {rrule}"
-        )
+        LOGGER.info(f'Processing ICS event "{summary}"\n')
+        LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
 
         gcal_event = gcal_get_event(gcal, ical_uid)
 
@@ -180,7 +178,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 if gcal_compare(
                     gcal_event, updated_event, ignore_sequence=True
                 ):
-                    LOGGER.info("✅ Event updated successfully")
+                    LOGGER.info("✅🆙 Event successfully updated")
                 else:
                     LOGGER.warning("❗ Event did not update correctly")
                 gcal_imported_events.append(updated_event)

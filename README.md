@@ -8,7 +8,6 @@
 docker run -it --rm \
   -e "TZ=Europe/Berlin" \
   -v "$PWD/config:/config" \
-  -v "$PWD/data:/data:ro" \
   pschmitt/gcal-import-ics:latest \
     "My Personal Calendar" \
     /data/calendar.ics

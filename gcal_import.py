@@ -240,7 +240,7 @@ def import_events(gcal, file, proxy=None, dry_run=False):
                 else:
                     updated_event = gcal.update_event(gcal_event)
                     if gcal_compare(
-                        gcal_event, updated_event, ignore_sequence=True
+                        gcal_ics_event, updated_event, ignore_sequence=True
                     ):
                         LOGGER.info("✅🆙 Event successfully updated")
                     else:

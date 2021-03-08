@@ -77,6 +77,13 @@ def gcal_compare(event1, event2, ignore_sequence=False):
         if p1 in ["", None] and p2 in ["", None]:
             # Consider empty string equal to None
             continue
+        elif (
+            prop == "status"
+            and p1 in ["", None, "confirmed"]
+            and p2 in ["", None, "confirmed"]
+        ):
+            # "confirmed" is the default status
+            continue
         elif p1 != p2:
             LOGGER.warning(f"The events differ by {prop}: {p1} != {p2}")
             return False

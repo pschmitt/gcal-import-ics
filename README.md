@@ -10,7 +10,7 @@ docker run -it --rm \
   -v "$PWD/config:/config" \
   -v "$PWD/data:/data:ro" \
   pschmitt/gcal-import-ics:latest \
-    c_randomCalendarId@group.calendar.google.com \
+    "My Personal Calendar" \
     /data/calendar.ics
 ```
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 
 You will need the following:
 
-- Your calendar ID
+- Your calendar ID (or its name)
 - a JSON credentials file. See [here](https://google-calendar-simple-api.readthedocs.io/en/latest/getting_started.html#credentials) for instructions.
 
 # Usage
@@ -43,8 +43,8 @@ python3 gcal_import.py \
   -c ./credentials/client_secret_blablablabla.apps.googleusercontent.com.json \
   -t ./credentials/gcal.token \
   -p "PROXY=socks5h://corp.acme.com:8080" \
-  "$GOOGLE_CALENDAR_ID" \
-  "$ICS_FILE_OR_URL"
+  "$GOOGLE_CALENDAR_NAME_OR_ID" \
+  "$ICS_FILE_PATH_OR_URL"
 ```
 
 # But why?

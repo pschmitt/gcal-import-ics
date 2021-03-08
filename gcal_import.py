@@ -273,7 +273,6 @@ def delete_other_events(gcal, imported_events, include_past_events=False):
     imported_uids = [x.other["iCalUID"] for x in imported_events]
 
     for ev in events:
-        LOGGER.debug(f"Event ID: {ev.other['iCalUID']}")
         if ev.other["iCalUID"] not in imported_uids:
             LOGGER.warning(
                 f"🕵️  Fringe event found: {ev.summary}. Deleting it!"

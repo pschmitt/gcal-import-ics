@@ -114,6 +114,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
         # Metadata
         ical_uid = str(ical_event.get("UID"))
         sequence = int(ical_event.get("SEQUENCE", 0))
+        transparency = str(ical_event.get("TRANSP")).lower()
 
         summary = ical_event.decoded("SUMMARY").decode("utf-8").strip()
         description = ical_event.decoded("DESCRIPTION").decode("utf-8")
@@ -160,6 +161,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 gcal_event.summary = summary
                 gcal_event.description = description
                 gcal_event.location = location
+                gcal_event.transparency = transparency
 
                 gcal_event.start = start
                 gcal_event.end = end
@@ -194,6 +196,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 description=description,
                 location=location,
                 default_reminders=True,
+                transparency=transparency,
             )
             gcal_event.other["status"] = status
             gcal_event.other["sequence"] = sequence
@@ -219,8 +222,10 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                             }
                         )
                     )
+
                     res.summary = summary
                     res.description = description
+                    res.transparency = transparency
                     res.location = location
                     res.start = start
                     res.end = end

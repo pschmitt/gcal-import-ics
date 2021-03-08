@@ -65,4 +65,4 @@ https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
 - [x] Optionally ignore SEQUENCE and always update
 - [x] Allow passing in the calendar name, instead of the ID
 - [x] Support recurring event *instances*
-- [ ] Allow settings args with environment variables
+- [x] Allow settings args with environment variables

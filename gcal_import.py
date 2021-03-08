@@ -93,8 +93,10 @@ def gcal_compare(event1, event2, ignore_sequence=False):
             # Sort both, so that we compare apples to apples
             p1.sort()
             p2.sort()
+
+            LOGGER.debug(f"RRULE: Comparing {p1} to {p2}")
+
             i = 0
-            LOGGER.debug(f"Comparing {p1} to {p2}")
             while i < len(p1):
                 # Remove RRULE: and split
                 rrule1 = set(

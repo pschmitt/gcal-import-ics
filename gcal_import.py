@@ -174,6 +174,7 @@ def import_events(gcal, file, proxy=None, dry_run=False):
         "created": [],
         "untouched": [],
         "duplicates": [],
+        "unsupported": [],
     }
     processed_uids = []
 
@@ -198,6 +199,14 @@ def import_events(gcal, file, proxy=None, dry_run=False):
 
         LOGGER.info(f'Processing ICS event "{summary}"\n')
         LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
+
+        # Check if this is an instance of a recurring event
+        if "RECURRENCE-ID" in ical_event:
+            LOGGER.warning(
+                "Instances of recurring events are not supported yet. Sorry."
+            )
+            gcal_changes.get("unsupported").append(ical_uid)
+            continue
 
         # Check if we already processed this iCalUID
         if ical_uid in processed_uids:
@@ -275,6 +284,8 @@ def import_events(gcal, file, proxy=None, dry_run=False):
         try:
             res = gcal.import_event(gcal_ics_event)
 
+            # FIXME Why does this even happen?
+            # Some recurring events are created with status=cancelled 🤷
             if not gcal_compare(gcal_ics_event, res, ignore_sequence=True):
                 LOGGER.warning(
                     "❗ The event was not created as intended. "
@@ -465,7 +476,8 @@ def main():
         f"ℹ️ Imported {len(events['created'])} and "
         f"updated {len(events['updated'])} events. "
         f"Left {len(events['untouched'])} events untouched. "
-        f"Duplicates count: {len(events['duplicates'])}"
+        f"Duplicates count: {len(events['duplicates'])} "
+        f"Unsupported items: {len(events['unsupported'])} "
     )
 
     if args.delete:

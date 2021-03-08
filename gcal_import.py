@@ -214,7 +214,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
 
                 if not gcal_compare(gcal_event, res):
                     LOGGER.warning(
-                        "❗ The event was not created as intended."
+                        "❗ The event was not created as intended. "
                         "Let's update it."
                     )
                     LOGGER.debug(

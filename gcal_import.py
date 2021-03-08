@@ -29,7 +29,7 @@ def gcal_get_event(gcal, ical_uid):
     return res[0] if res else None
 
 
-def gcal_clear(gcal):
+def gcal_clear(gcal, dry_run=False):
     res = list(
         gcal.get_events(
             time_min=datetime(1970, 1, 1),
@@ -39,19 +39,22 @@ def gcal_clear(gcal):
     )
     deleted = 0
     for event in res:
-        try:
-            gcal.delete_event(event)
-        except GoogleHttpError as exc:
-            # Ignore 'Resource has been deleted' exceptions
-            if (
-                exc.resp["status"] != "410"
-            ):  # 410: Gone -> "Resource has been deleted"
-                LOGGER.error(
-                    f"Exception caught while deleting: {exc.error_details}\n"
-                    f"{exc}"
-                )
-                raise exc
-        deleted = deleted + 1
+        if dry_run:
+            LOGGER.info(f'Dry run: Would have deleted event "{event.summary}"')
+        else:
+            try:
+                gcal.delete_event(event)
+            except GoogleHttpError as exc:
+                # Ignore 'Resource has been deleted' exceptions
+                if (
+                    exc.resp["status"] != "410"
+                ):  # 410: Gone -> "Resource has been deleted"
+                    LOGGER.error(
+                        "Exception caught while deleting:"
+                        f"{exc.error_details}\n{exc}"
+                    )
+                    raise exc
+            deleted = deleted + 1
     return deleted
 
 
@@ -91,7 +94,7 @@ def gcal_compare(event1, event2, ignore_sequence=False):
     return True
 
 
-def import_events(gcal, file, proxy=None, ignore_sequence=False):
+def read_ics(file, proxy=None):
     if re.match("https?://.*", file):
         rq_proxies = (
             {
@@ -103,19 +106,23 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
         )
 
         LOGGER.info(f"Fetching ICS file from {file} (proxy: {proxy})")
-        ical = icalendar.Calendar.from_ical(
-            requests.get(file, proxies=rq_proxies).text
-        )
+        ics_text = requests.get(file, proxies=rq_proxies).text
     else:
         with open(file) as f:
-            ical = icalendar.Calendar.from_ical(f.read())
+            ics_text = icalendar.Calendar.from_ical(f.read())
+    return icalendar.Calendar.from_ical(ics_text)
 
+
+def import_events(gcal, file, proxy=None, ignore_sequence=False, dry_run=False):
     gcal_imported_events = []
+    ical = read_ics(file, proxy)
 
     for ical_event in ical.walk():
         # Skip non-events
         if ical_event.name != "VEVENT":
-            LOGGER.debug("Not an event. Skip this ical item.")
+            LOGGER.debug(
+                f"Not an event ({ical_event.name}). Skip this ical item."
+            )
             continue
 
         # Metadata
@@ -139,10 +146,30 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
         LOGGER.info(f'Processing ICS event "{summary}"\n')
         LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
 
+        # Create a new Event object
+        gcal_ics_event = GoogleCalendarEvent(
+            iCalUID=ical_uid,
+            summary=summary,
+            start=start,
+            end=end,
+            description=description,
+            location=location,
+            default_reminders=True,
+            transparency=transparency,
+        )
+
+        if rrule:
+            gcal_ics_event.recurrence = [rrule]
+
+        gcal_ics_event.other["status"] = status
+        gcal_ics_event.other["sequence"] = sequence
+
         gcal_event = gcal_get_event(gcal, ical_uid)
 
         if gcal_event:
-            LOGGER.info(f"Found matching gcal event: {gcal_event.summary}")
+            LOGGER.info(f'Found matching gcal event: "{gcal_event.summary}"')
+            gcal_compare(gcal_event, gcal_ics_event)
+
             gcal_sequence = gcal_event.other.get("sequence")
 
             LOGGER.debug(f"SEQUENCE ICS: {sequence} - GCAL: {gcal_sequence}")
@@ -174,74 +201,46 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 if rrule:
                     gcal_event.recurrence = [rrule]
 
-                updated_event = gcal.update_event(gcal_event)
-                if gcal_compare(
-                    gcal_event, updated_event, ignore_sequence=True
-                ):
-                    LOGGER.info("✅🆙 Event successfully updated")
+                if dry_run:
+                    LOGGER.info(
+                        "Dry run: Would have updated event "
+                        f'"{gcal_event.summary}"'
+                    )
                 else:
-                    LOGGER.warning("❗ Event did not update correctly")
-                gcal_imported_events.append(updated_event)
+                    updated_event = gcal.update_event(gcal_event)
+                    if gcal_compare(
+                        gcal_event, updated_event, ignore_sequence=True
+                    ):
+                        LOGGER.info("✅🆙 Event successfully updated")
+                    else:
+                        LOGGER.warning("❗ Event did not update correctly")
+                    gcal_imported_events.append(updated_event)
             elif gcal_sequence > sequence:
                 LOGGER.info(
                     "⏩ The Google Calendar entry has a higher SEQUENCE. Skip."
                 )
-                gcal_imported_events.append(gcal_event)
+                if not dry_run:
+                    gcal_imported_events.append(gcal_event)
             else:
                 LOGGER.info(f"⏩ Same sequence number ({sequence}). Skip.")
-                gcal_imported_events.append(gcal_event)
+                if not dry_run:
+                    gcal_imported_events.append(gcal_event)
         else:
             LOGGER.info("No gcal event found. Creating a new one")
-            # TODO Create event
-            gcal_event = GoogleCalendarEvent(
-                iCalUID=ical_uid,
-                summary=summary,
-                start=start,
-                end=end,
-                description=description,
-                location=location,
-                default_reminders=True,
-                transparency=transparency,
-            )
 
-            if rrule:
-                gcal_event.recurrence = [rrule]
+            if dry_run:
+                LOGGER.info(
+                    f'Dry run: Would have created event "{gcal_ics_event.summary}"'
+                )
+            else:
+                try:
+                    res = gcal.import_event(gcal_ics_event)
 
-            gcal_event.other["status"] = status
-            gcal_event.other["sequence"] = sequence
-
-            try:
-                res = gcal.import_event(gcal_event)
-
-                if not gcal_compare(gcal_event, res):
-                    LOGGER.warning(
-                        "❗ The event was not created as intended. "
-                        "Let's update it."
-                    )
-                    LOGGER.debug(
-                        "GOOGLE CALENDAR API RESULT:\n"
-                        + pformat(
-                            {
-                                k: v
-                                for (k, v) in vars(res).items()
-                                if k != "description"
-                            }
+                    if not gcal_compare(gcal_ics_event, res):
+                        LOGGER.warning(
+                            "❗ The event was not created as intended. "
+                            "Let's update it."
                         )
-                    )
-
-                    res.summary = summary
-                    res.description = description
-                    res.transparency = transparency
-                    res.location = location
-                    res.start = start
-                    res.end = end
-                    res.other["sequence"] = sequence
-                    res.other["status"] = status
-                    res = gcal.update_event(res)
-                    # We need to ignore the sequence here since updating the
-                    # event does increase it
-                    if not gcal_compare(gcal_event, res, ignore_sequence=True):
-                        LOGGER.critical("💥 Even updating did not help.")
                         LOGGER.debug(
                             "GOOGLE CALENDAR API RESULT:\n"
                             + pformat(
@@ -252,19 +251,49 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                                 }
                             )
                         )
+
+                        res.summary = summary
+                        res.description = description
+                        res.transparency = transparency
+                        res.location = location
+                        res.start = start
+                        res.end = end
+                        res.other["sequence"] = sequence
+                        res.other["status"] = status
+                        res = gcal.update_event(res)
+
+                        # We need to ignore the sequence here since updating the
+                        # event does increase it
+                        if not gcal_compare(
+                            gcal_ics_event, res, ignore_sequence=True
+                        ):
+                            LOGGER.critical("💥 Even updating did not help.")
+                            LOGGER.debug(
+                                "GOOGLE CALENDAR API RESULT:\n"
+                                + pformat(
+                                    {
+                                        k: v
+                                        for (k, v) in vars(res).items()
+                                        if k != "description"
+                                    }
+                                )
+                            )
+                        else:
+                            LOGGER.info("✅ Created event sucessfully")
                     else:
                         LOGGER.info("✅ Created event sucessfully")
-                else:
-                    LOGGER.info("✅ Created event sucessfully")
-                gcal_imported_events.append(res)
-            except:
-                LOGGER.error("🚨 Failed to create event")
-                raise
+                    gcal_imported_events.append(res)
+                except Exception as exc:
+                    LOGGER.error(f"🚨 Failed to create event\n{exc}")
+                    raise exc
 
     return gcal_imported_events
 
 
-def delete_other_events(gcal, imported_events, include_past_events=False):
+def delete_other_events(
+    gcal, imported_events, include_past_events=False, dry_run=False
+):
+    LOGGER.warning("Searching fringe events")
     deleted_count = 0
     min = datetime(1970, 1, 1) if include_past_events else datetime.now()
     # Fetch all events
@@ -274,11 +303,16 @@ def delete_other_events(gcal, imported_events, include_past_events=False):
 
     for ev in events:
         if ev.other["iCalUID"] not in imported_uids:
-            LOGGER.warning(
-                f"🕵️  Fringe event found: {ev.summary}. Deleting it!"
-            )
-            gcal.delete_event(ev)
-            deleted_count = deleted_count + 1
+            if dry_run:
+                LOGGER.info(
+                    f"Dry run: Would have deleted fringe event {ev.summary}"
+                )
+            else:
+                LOGGER.warning(
+                    f"🕵️  Fringe event found: {ev.summary}. Deleting it!"
+                )
+                gcal.delete_event(ev)
+                deleted_count = deleted_count + 1
     return deleted_count
 
 
@@ -326,6 +360,14 @@ def parse_args():
         default=False,
         help="Delete future events that are not in the provided ICS file",
     )
+    parser.add_argument(
+        "-k",
+        "--dry-run",
+        required=False,
+        action="store_true",
+        default=False,
+        help="Dry-run. Do not add/remove/update any events",
+    )
     parser.add_argument("CALENDAR")
     parser.add_argument("ICS_FILE")
     return parser.parse_args()
@@ -344,7 +386,6 @@ def main():
     )
 
     gcal = GoogleCalendar(
-        # calendar=args.CALENDAR,
         credentials_path=args.credentials,
         token_path=args.token,
     )
@@ -372,7 +413,7 @@ def main():
     # FIXME Check the ICS file/url first.
     # Clear?
     if args.clear:
-        deleted = gcal_clear(gcal)
+        deleted = gcal_clear(gcal, args.dry_run)
         LOGGER.warning(f"✂️ Deleted {deleted} events")
 
     # Import
@@ -381,12 +422,13 @@ def main():
         args.ICS_FILE,
         proxy=args.proxy,
         ignore_sequence=args.ignore_sequence,
+        dry_run=args.dry_run,
     )
     LOGGER.info(f"ℹ️ Imported/updated {len(events)} events")
 
     if args.delete:
-        if events:
-            deleted = delete_other_events(gcal, events)
+        if events or args.dry_run:
+            deleted = delete_other_events(gcal, events, dry_run=args.dry_run)
             LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
         else:
             LOGGER.error(

@@ -17,13 +17,13 @@ from googleapiclient.errors import HttpError as GoogleHttpError
 LOGGER = logging.getLogger("gcal-ics-import")
 
 
-def gcal_get_event(gcal, ical_uid):
+def gcal_get_event(gcal, ical_uid, single_events=False):
     res = list(
         gcal.get_events(
             iCalUID=ical_uid,
             time_min=datetime(1970, 1, 1),
             time_max=datetime(3000, 1, 1),
-            single_events=False,
+            single_events=single_events,
         )
     )
     return res[0] if res else None
@@ -158,14 +158,21 @@ def read_ics(file, proxy=None):
 
     ical = icalendar.Calendar.from_ical(ics_text)
     events = []
+    recurrent_event_instances = []
 
     for item in ical.walk():
         # Skip non-events
         if item.name != "VEVENT":
             LOGGER.debug(f"Not an event ({item.name}). Skip this ical item.")
             continue
-        events.append(item)
-    return events
+        elif "RECURRENCE-ID" in item:
+            recurrent_event_instances.append(item)
+        else:
+            events.append(item)
+    # Append the recurent event instances at the end so that they get
+    # processed last. Otherwise we'd end up trying to fetch a recurring
+    # event instance before we import the "parent" recurring event.
+    return events + recurrent_event_instances
 
 
 def import_events(gcal, file, proxy=None, dry_run=False):
@@ -175,6 +182,7 @@ def import_events(gcal, file, proxy=None, dry_run=False):
         "untouched": [],
         "duplicates": [],
         "unsupported": [],
+        "failed": [],
     }
     processed_uids = []
 
@@ -200,22 +208,7 @@ def import_events(gcal, file, proxy=None, dry_run=False):
         LOGGER.info(f'Processing ICS event "{summary}"\n')
         LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
 
-        # Check if this is an instance of a recurring event
-        if "RECURRENCE-ID" in ical_event:
-            LOGGER.warning(
-                "Instances of recurring events are not supported yet. Sorry."
-            )
-            gcal_changes.get("unsupported").append(ical_uid)
-            continue
-
-        # Check if we already processed this iCalUID
-        if ical_uid in processed_uids:
-            LOGGER.info("Duplicate UID detected. Skip item.")
-            gcal_changes.get("duplicates").append(ical_uid)
-            continue
-        processed_uids.append(ical_uid)
-
-        # Create a new Event object
+        # Create a new Event object with the ICS data
         gcal_ics_event = GoogleCalendarEvent(
             iCalUID=ical_uid,
             summary=summary,
@@ -234,7 +227,53 @@ def import_events(gcal, file, proxy=None, dry_run=False):
         # if sequence:
         #     gcal_ics_event.other["sequence"] = sequence
 
-        gcal_event = gcal_get_event(gcal, ical_uid)
+        # Check if this is an instance of a recurring event
+        if "RECURRENCE-ID" in ical_event:
+            LOGGER.debug("This event is an occurence of a recurring event")
+
+            # Fetch event instance
+            gcal_parent_event = gcal_get_event(gcal, ical_uid)
+            gcal_events = list(
+                gcal.get_instances(
+                    recurring_event=gcal_parent_event,
+                    time_min=gcal_ics_event.start,
+                    time_max=gcal_ics_event.end,
+                    maxResults=2,
+                )
+            )
+
+            LOGGER.debug(
+                f'Recurring event: "{gcal_parent_event.summary}" '
+                f"(event ID: {gcal_parent_event.event_id})"
+            )
+            LOGGER.debug(f"Number of matching instances: {len(gcal_events)}")
+            LOGGER.debug(f"Event instance ID: {gcal_events[0].event_id}")
+
+            if not gcal_events:
+                LOGGER.error(
+                    "Could not find recurrent event instance for this timeframe"
+                )
+                gcal_changes.get("failed").append(ical_uid)
+                continue
+            elif len(gcal_events) > 1:
+                LOGGER.error(
+                    "Found more than one event instance. "
+                    "This shouldn't happen."
+                )
+                gcal_changes.get("failed").append(ical_uid)
+                continue
+
+            gcal_event = gcal_events[0]
+
+        # Check if we already processed this iCalUID
+        elif ical_uid in processed_uids:
+            LOGGER.info("Duplicate iCalUID detected. Skip item.")
+            gcal_changes.get("duplicates").append(ical_uid)
+            continue
+        else:
+            gcal_event = gcal_get_event(gcal, ical_uid)
+
+        processed_uids.append(ical_uid)
 
         if gcal_event:
             # Update event
@@ -475,9 +514,10 @@ def main():
     LOGGER.info(
         f"ℹ️ Imported {len(events['created'])} and "
         f"updated {len(events['updated'])} events. "
-        f"Left {len(events['untouched'])} events untouched. "
+        f"Left {len(events['untouched'])} events untouched.\n"
         f"Duplicates count: {len(events['duplicates'])} "
         f"Unsupported items: {len(events['unsupported'])} "
+        f"Failed items: {len(events['failed'])} "
     )
 
     if args.delete:

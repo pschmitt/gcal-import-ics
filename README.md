@@ -65,3 +65,4 @@ https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
 - [ ] Wait and retry when rate-limitted
 - [x] Optionally ignore SEQUENCE and always update
 - [x] Allow passing in the calendar name, instead of the ID
+- [x] Support recurring event *instances*

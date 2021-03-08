@@ -203,11 +203,12 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False):
                 default_reminders=True,
                 transparency=transparency,
             )
-            gcal_event.other["status"] = status
-            gcal_event.other["sequence"] = sequence
 
             if rrule:
                 gcal_event.recurrence = [rrule]
+
+            gcal_event.other["status"] = status
+            gcal_event.other["sequence"] = sequence
 
             try:
                 res = gcal.import_event(gcal_event)

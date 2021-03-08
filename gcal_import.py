@@ -470,7 +470,7 @@ def main():
     coloredlogs.install(
         level="DEBUG" if args.debug else "INFO",
         logger=LOGGER,
-        fmt="[%(asctime)s] %(name)s %(levelname)s %(message)s",
+        fmt="[%(asctime)s] %(levelname)s %(message)s",
     )
 
     gcal = GoogleCalendar(
@@ -513,12 +513,12 @@ def main():
     )
     LOGGER.info(
         f"ℹ️ Imported {len(events['created'])} and "
-        f"updated {len(events['updated'])} events. "
-        f"Left {len(events['untouched'])} events untouched.\n"
-        f"Duplicates count: {len(events['duplicates'])} "
-        f"Unsupported items: {len(events['unsupported'])} "
-        f"Failed items: {len(events['failed'])} "
+        f"updated {len(events['updated'])} events."
     )
+    LOGGER.info(f"👌 {len(events['untouched'])} events were left untouched.")
+    LOGGER.info(f"👯 Duplicates count: {len(events['duplicates'])}")
+    LOGGER.info(f"🤷 Unsupported items: {len(events['unsupported'])}")
+    LOGGER.info(f"😞 Failed items: {len(events['failed'])} ")
 
     if args.delete:
         if events or args.dry_run:

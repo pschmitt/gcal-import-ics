@@ -230,7 +230,8 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False, dry_run=False):
 
             if dry_run:
                 LOGGER.info(
-                    f'Dry run: Would have created event "{gcal_ics_event.summary}"'
+                    "Dry run: Would have created event"
+                    f'"{gcal_ics_event.summary}"'
                 )
             else:
                 try:
@@ -242,7 +243,7 @@ def import_events(gcal, file, proxy=None, ignore_sequence=False, dry_run=False):
                             "Let's update it."
                         )
                         LOGGER.debug(
-                            "GOOGLE CALENDAR API RESULT:\n"
+                            "GOOGLE CALENDAR API RESULT (w/o description):\n"
                             + pformat(
                                 {
                                     k: v
@@ -368,8 +369,8 @@ def parse_args():
         default=False,
         help="Dry-run. Do not add/remove/update any events",
     )
-    parser.add_argument("CALENDAR")
-    parser.add_argument("ICS_FILE")
+    parser.add_argument("CALENDAR", help="Google Calendar ID or name")
+    parser.add_argument("ICS_FILE", help="File path or URL")
     return parser.parse_args()
 
 

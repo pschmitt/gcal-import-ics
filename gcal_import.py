@@ -177,6 +177,65 @@ def read_ics(file, proxy=None):
     return events + recurrent_event_instances
 
 
+def ics_to_gcal(ical_event):
+    # Metadata
+    ical_uid = str(ical_event.get("UID"))
+    # sequence = int(ical_event.get("SEQUENCE", 0))
+    transparency = (
+        str(ical_event.get("TRANSP")).lower()
+        if "TRANSP" in ical_event
+        else "opaque"
+    )
+
+    summary = (
+        ical_event.decoded("SUMMARY").decode("utf-8").strip()
+        if "SUMMARY" in ical_event
+        else ""
+    )
+    description = (
+        ical_event.decoded("DESCRIPTION").decode("utf-8")
+        if "DESCRIPTION" in ical_event
+        else ""
+    )
+    status = (
+        ical_event.decoded("STATUS").decode("utf-8").lower()
+        if "STATUS" in ical_event
+        else "confirmed"
+    )
+    location = (
+        ical_event.decoded("LOCATION").decode("utf-8")
+        if "LOCATION" in ical_event
+        else ""
+    )
+
+    start = ical_event.decoded("DTSTART")
+    end = ical_event.decoded("DTEND")
+    rrule = (
+        "RRULE:" + ical_event.get("RRULE").to_ical().decode("utf-8")
+        if "RRULE" in ical_event
+        else None
+    )
+
+    # Create a new Event object with the ICS data
+    gcal_event = GoogleCalendarEvent(
+        iCalUID=ical_uid,
+        summary=summary,
+        start=start,
+        end=end,
+        description=description,
+        location=location,
+        default_reminders=True,
+        transparency=transparency,
+    )
+    if rrule:
+        gcal_event.recurrence = [rrule]
+    if status:
+        gcal_event.other["status"] = status
+    # if sequence:
+    #     gcal_ics_event.other["sequence"] = sequence
+    return gcal_event
+
+
 def import_events(gcal, file, proxy=None, dry_run=False):
     gcal_changes = {
         "updated": [],
@@ -189,45 +248,13 @@ def import_events(gcal, file, proxy=None, dry_run=False):
     processed_uids = []
 
     for ical_event in read_ics(file, proxy):
-        # Metadata
-        ical_uid = str(ical_event.get("UID"))
-        # sequence = int(ical_event.get("SEQUENCE", 0))
-        transparency = str(ical_event.get("TRANSP")).lower()
-
-        summary = ical_event.decoded("SUMMARY").decode("utf-8").strip()
-        description = ical_event.decoded("DESCRIPTION").decode("utf-8")
-        status = ical_event.decoded("STATUS").decode("utf-8").lower()
-        location = ical_event.decoded("LOCATION").decode("utf-8")
-
-        start = ical_event.decoded("DTSTART")
-        end = ical_event.decoded("DTEND")
-        rrule = (
-            "RRULE:" + ical_event.get("RRULE").to_ical().decode("utf-8")
-            if "RRULE" in ical_event
-            else None
-        )
-
-        LOGGER.info(f'Processing ICS event "{summary}"\n')
-        LOGGER.debug(f"UID: {ical_uid}\nRRULE: {rrule}")
-
         # Create a new Event object with the ICS data
-        gcal_ics_event = GoogleCalendarEvent(
-            iCalUID=ical_uid,
-            summary=summary,
-            start=start,
-            end=end,
-            description=description,
-            location=location,
-            default_reminders=True,
-            transparency=transparency,
-        )
+        gcal_ics_event = ics_to_gcal(ical_event)
+        ical_uid = gcal_ics_event.other.get("iCalUID")
+        status = gcal_ics_event.other.get("status")
 
-        if rrule:
-            gcal_ics_event.recurrence = [rrule]
-        if status:
-            gcal_ics_event.other["status"] = status
-        # if sequence:
-        #     gcal_ics_event.other["sequence"] = sequence
+        LOGGER.info(f'Processing ICS event "{gcal_ics_event.summary}"\n')
+        LOGGER.debug(f"UID: {ical_uid}")
 
         # Check if this is an instance of a recurring event
         if "RECURRENCE-ID" in ical_event:
@@ -532,6 +559,7 @@ def main():
                 "Deletion of fringe events was skipped."
             )
             return
+
     return events
 
 

@@ -269,14 +269,21 @@ def import_events(gcal, file, proxy=None, auth=None, dry_run=False):
 
             # Fetch event instance
             gcal_parent_event = gcal_get_event(gcal, ical_uid)
-            gcal_events = list(
-                gcal.get_instances(
-                    recurring_event=gcal_parent_event,
-                    time_min=gcal_ics_event.start,
-                    time_max=gcal_ics_event.end,
-                    maxResults=2,
+            try:
+                gcal_events = list(
+                    gcal.get_instances(
+                        recurring_event=gcal_parent_event,
+                        time_min=gcal_ics_event.start,
+                        time_max=gcal_ics_event.end,
+                        maxResults=2,
+                    )
                 )
-            )
+            except Exception as exc:
+                LOGGER.error(
+                    f"Failed to find event instances for event {ical_uid}"
+                )
+                gcal_changes.get("failed").append(ical_uid)
+                continue
 
             LOGGER.debug(
                 f'Recurring event: "{gcal_parent_event.summary}" '

@@ -283,7 +283,8 @@ def import_events(gcal, file, proxy=None, auth=None, dry_run=False):
                 f"(event ID: {gcal_parent_event.event_id})"
             )
             LOGGER.debug(f"Number of matching instances: {len(gcal_events)}")
-            LOGGER.debug(f"Event instance ID: {gcal_events[0].event_id}")
+            if gcal_events:
+                LOGGER.debug(f"Event instance ID: {gcal_events[0].event_id}")
 
             if not gcal_events:
                 LOGGER.error(

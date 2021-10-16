@@ -10,6 +10,8 @@ from pprint import pformat
 import coloredlogs
 import icalendar
 import requests
+
+from atlassian import Confluence
 from gcsa.event import Event as GoogleCalendarEvent
 from gcsa.google_calendar import GoogleCalendar
 from googleapiclient.errors import HttpError as GoogleHttpError
@@ -88,6 +90,7 @@ def gcal_compare(event1, event2, ignore_sequence=False):
                 )
                 return False
             if len(p1) != len(p2):
+                LOGGER.debug(f"Events differ by RRULE: {p1} != {p2}")
                 return False
 
             # Sort both, so that we compare apples to apples
@@ -110,6 +113,9 @@ def gcal_compare(event1, event2, ignore_sequence=False):
                     ).split(";")
                 )
                 if rrule1 != rrule2:
+                    LOGGER.debug(
+                        f"Events differ by RRULE: {rrule1} != {rrule2}"
+                    )
                     return False
                 i += 1
         elif p1 != p2:
@@ -141,7 +147,7 @@ def gcal_compare(event1, event2, ignore_sequence=False):
     return True
 
 
-def read_ics(file, proxy=None):
+def read_ics(file, proxy=None, auth=None):
     if re.match("https?://.*", file):
         rq_proxies = (
             {
@@ -153,7 +159,7 @@ def read_ics(file, proxy=None):
         )
 
         LOGGER.info(f"Fetching ICS file from {file} (proxy: {proxy})")
-        ics_text = requests.get(file, proxies=rq_proxies).text
+        ics_text = requests.get(file, proxies=rq_proxies, auth=auth).text
     else:
         with open(file) as f:
             ics_text = f.read()
@@ -228,6 +234,7 @@ def ics_to_gcal(ical_event):
         transparency=transparency,
     )
     if rrule:
+        LOGGER.warning(f"NEW EVENT RRULE=[{rrule}]")
         gcal_event.recurrence = [rrule]
     if status:
         gcal_event.other["status"] = status
@@ -236,7 +243,7 @@ def ics_to_gcal(ical_event):
     return gcal_event
 
 
-def import_events(gcal, file, proxy=None, dry_run=False):
+def import_events(gcal, file, proxy=None, auth=None, dry_run=False):
     gcal_changes = {
         "updated": [],
         "created": [],
@@ -247,7 +254,7 @@ def import_events(gcal, file, proxy=None, dry_run=False):
     }
     processed_uids = []
 
-    for ical_event in read_ics(file, proxy):
+    for ical_event in read_ics(file, proxy, auth):
         # Create a new Event object with the ICS data
         gcal_ics_event = ics_to_gcal(ical_event)
         ical_uid = gcal_ics_event.other.get("iCalUID")
@@ -335,9 +342,10 @@ def import_events(gcal, file, proxy=None, dry_run=False):
                         gcal_ics_event, updated_event, ignore_sequence=True
                     ):
                         LOGGER.info("✅🆙 Event successfully updated")
+                        gcal_changes["updated"].append(updated_event)
                     else:
                         LOGGER.error("❗ Event did not update correctly")
-                    gcal_changes["updated"].append(updated_event)
+                        gcal_changes["failed"].append(updated_event)
             continue
 
         # Create new event
@@ -350,7 +358,15 @@ def import_events(gcal, file, proxy=None, dry_run=False):
             )
             continue
         try:
-            res = gcal.import_event(gcal_ics_event)
+            LOGGER.debug(
+                f"New event: {gcal_ics_event} (RRULE: {gcal_ics_event.recurrence})"
+            )
+            try:
+                res = gcal.import_event(gcal_ics_event)
+            except Exception as exc:
+                LOGGER.error(f"Failed to import event {gcal_ics_event}: {exc}")
+                gcal_changes["failed"].append(gcal_ics_event)
+                continue
 
             # FIXME Why does this even happen?
             # Some recurring events are created with status=cancelled 🤷
@@ -442,6 +458,24 @@ def delete_other_events(
     return deleted_count
 
 
+def get_confluence_calendar_info(url: str, username: str, password: str):
+    confluence_client = Confluence(url, username=username, password=password)
+    cal_metadata = []
+    for c in confluence_client.team_calendars_get_sub_calendars().get(
+        "payload"
+    ):
+        cal = c.get("subCalendar")
+        cal_id = cal.get("id")
+        cal_name = cal.get("name")
+        cal_tz = cal.get("timeZoneId")
+        ics_url = f"{url}/rest/calendar-services/1.0/calendar/export/subcalendar/{cal_id}.ics?os_authType=basic&isSubscribe=true"
+        LOGGER.info(f"{cal_name} (ID: {cal_id}): {ics_url}")
+        cal_metadata.append(
+            {"id": cal_id, "name": cal_name, "tz": cal_tz, "url": ics_url}
+        )
+    return cal_metadata
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -453,11 +487,40 @@ def parse_args():
         help="Debug output",
     )
     parser.add_argument(
-        "-c", "--credentials", required=True, help="Path to credentials file"
+        "-c",
+        "--credentials",
+        required=True,
+        help="Path to Google Calendar credentials file",
     )
     parser.add_argument(
-        "-t", "--token", required=True, help="Path to token file"
+        "-t",
+        "--token",
+        required=True,
+        help="Path to Google Calendar token file",
     )
+    parser.add_argument(
+        "--confluence-url", required=False, help="Confluence URL"
+    )
+    parser.add_argument(
+        "--confluence-username", required=False, help="Confluence Username"
+    )
+    parser.add_argument(
+        "--confluence-password", required=False, help="Confluence Password"
+    )
+    parser.add_argument(
+        "--confluence-calendars",
+        required=False,
+        nargs="*",
+        default=[],
+        help="Confluence calendar to sync",
+    )
+    parser.add_argument(
+        "--confluence-calendar-prefix",
+        required=False,
+        default="",
+        help="Confluence Calendar Prefix",
+    )
+
     parser.add_argument(
         "-p", "--proxy", required=False, help="PROXY to use to fetch the ICS"
     )
@@ -485,9 +548,93 @@ def parse_args():
         default=False,
         help="Dry-run. Do not add/remove/update any events",
     )
-    parser.add_argument("CALENDAR", help="Google Calendar ID or name")
-    parser.add_argument("ICS_FILE", help="File path or URL")
+    parser.add_argument(
+        "CALENDAR", nargs="?", help="Google Calendar ID or name"
+    )
+    parser.add_argument("ICS_FILE", nargs="?", help="File path or URL")
     return parser.parse_args()
+
+
+def import_ics(
+    credentials,
+    token_path,
+    calendar_name,
+    ics_file,
+    proxy=None,
+    auth=None,
+    clear=False,
+    delete=False,
+    dry_run=False,
+):
+    gcal = GoogleCalendar(
+        credentials_path=credentials,
+        token_path=token_path,
+    )
+
+    # Set calendar ID
+    if re.match(".+@group.calendar.google.com", calendar_name):
+        calendar_id = calendar_name
+    else:
+        # Find calendar ID
+        calendars = [
+            x.get("id")
+            for x in gcal.service.calendarList().list().execute().get("items")
+            if x.get("summary") == calendar_name
+        ]
+        if not calendars:
+            LOGGER.warning(
+                f"Could not find any calendar named {calendar_name}. "
+                f"Creating a new calendar named {calendar_name}"
+            )
+            # Create new calendar
+            new_calendar = {
+                "summary": calendar_name,
+                # 'timeZone': 'Europe/Berlin'
+            }
+            res = gcal.service.calendars().insert(body=new_calendar).execute()
+            calendar_id = res["id"]
+        else:
+            calendar_id = calendars[0]
+
+    gcal.calendar = calendar_id
+    LOGGER.debug(f"CALENDAR ID: {calendar_id}")
+
+    # FIXME Check the ICS file/url first.
+    # Clear?
+    if clear:
+        deleted = gcal_clear(gcal, dry_run)
+        LOGGER.warning(f"✂️ Deleted {deleted} events")
+
+    # Import
+    events = import_events(
+        gcal,
+        ics_file,
+        proxy=proxy,
+        auth=auth,
+        dry_run=dry_run,
+    )
+    LOGGER.info(
+        f"ℹ️ Imported {len(events['created'])} and "
+        f"updated {len(events['updated'])} events."
+    )
+    LOGGER.info(f"👌 {len(events['untouched'])} events were left untouched.")
+    LOGGER.info(f"👯 Duplicates count: {len(events['duplicates'])}")
+    LOGGER.info(f"🤷 Unsupported items: {len(events['unsupported'])}")
+    LOGGER.info(f"😞 Failed items: {len(events['failed'])} ")
+    LOGGER.debug(f"Failed items:\n{pformat(events['failed'])}")
+
+    if delete:
+        if events or dry_run:
+            deleted = delete_other_events(gcal, events, dry_run=dry_run)
+            LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
+        else:
+            LOGGER.error(
+                "🚨 No event was imported."
+                "Deletion of fringe events was skipped."
+            )
+            return
+
+    return events
 
 
 def main():
@@ -501,66 +648,46 @@ def main():
         logger=LOGGER,
         fmt="[%(asctime)s] %(levelname)s %(message)s",
     )
-
-    gcal = GoogleCalendar(
-        credentials_path=args.credentials,
-        token_path=args.token,
-    )
-
-    # Set calendar ID
-    if re.match(".+@group.calendar.google.com", args.CALENDAR):
-        calendar_id = args.CALENDAR
+    if args.confluence_url:
+        confluence_calendars = get_confluence_calendar_info(
+            args.confluence_url,
+            args.confluence_username,
+            args.confluence_password,
+        )
+        LOGGER.debug(f"{confluence_calendars}")
+        res = []
+        for ccal in confluence_calendars:
+            if args.confluence_calendars and ccal.get("name").lower() not in [
+                x.lower() for x in args.confluence_calendars
+            ]:
+                LOGGER.warning(f"Skipping calendar {ccal.get('name')}")
+                continue
+            res = import_ics(
+                credentials=args.credentials,
+                token_path=args.token,
+                calendar_name=f"{args.confluence_calendar_prefix}{ccal.get('name')}",
+                ics_file=ccal.get("url"),
+                proxy=args.proxy,
+                auth=(
+                    args.confluence_username,
+                    args.confluence_password,
+                ),
+                clear=args.clear,
+                delete=args.delete,
+                dry_run=args.dry_run,
+            )
+        return res
     else:
-        # Find calendar ID
-        calendars = [
-            x.get("id")
-            for x in gcal.service.calendarList().list().execute().get("items")
-            if x.get("summary") == args.CALENDAR
-        ]
-        if not calendars:
-            LOGGER.critical(
-                f"Could not find any calendar named {args.CALENDAR}"
-            )
-            sys.exit(1)
-        calendar_id = calendars[0]
-
-    gcal.calendar = calendar_id
-    LOGGER.debug(f"CALENDAR ID: {calendar_id}")
-
-    # FIXME Check the ICS file/url first.
-    # Clear?
-    if args.clear:
-        deleted = gcal_clear(gcal, args.dry_run)
-        LOGGER.warning(f"✂️ Deleted {deleted} events")
-
-    # Import
-    events = import_events(
-        gcal,
-        args.ICS_FILE,
-        proxy=args.proxy,
-        dry_run=args.dry_run,
-    )
-    LOGGER.info(
-        f"ℹ️ Imported {len(events['created'])} and "
-        f"updated {len(events['updated'])} events."
-    )
-    LOGGER.info(f"👌 {len(events['untouched'])} events were left untouched.")
-    LOGGER.info(f"👯 Duplicates count: {len(events['duplicates'])}")
-    LOGGER.info(f"🤷 Unsupported items: {len(events['unsupported'])}")
-    LOGGER.info(f"😞 Failed items: {len(events['failed'])} ")
-
-    if args.delete:
-        if events or args.dry_run:
-            deleted = delete_other_events(gcal, events, dry_run=args.dry_run)
-            LOGGER.warning(f"✂️ Deleted {deleted} fringe events")
-        else:
-            LOGGER.error(
-                "🚨 No event was imported."
-                "Deletion of fringe events was skipped."
-            )
-            return
-
-    return events
+        return import_ics(
+            credentials=args.credentials,
+            token_path=args.token,
+            calendar_name=args.CALENDAR,
+            ics_file=args.ICS_FILE,
+            proxy=args.proxy,
+            clear=args.clear,
+            delete=args.delete,
+            dry_run=args.dry_run,
+        )
 
 
 if __name__ == "__main__":

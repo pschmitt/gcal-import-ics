@@ -1,3 +1,4 @@
+atlassian-python-api
 colorama
 coloredlogs
 gcsa>=1.2.0

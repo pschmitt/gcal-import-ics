@@ -6,3 +6,4 @@ credentials/
 .venv
 *.bak
 *credentials*
+*.py*.py

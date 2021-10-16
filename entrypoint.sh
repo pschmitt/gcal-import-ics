@@ -65,7 +65,7 @@ fi
 if [[ -n "$CONFLUENCE_CALENDARS" ]]
 then
   readarray -d ',' -t CONFLUENCE_CALENDARS_ARRAY <<< "$CONFLUENCE_CALENDARS"
-  for c in ${CONFLUENCE_CALENDARS_ARRAY[@]}
+  for c in "${CONFLUENCE_CALENDARS_ARRAY[@]}"
   do
     IMPORT_CMD+=(--confluence-calendars "$c")
   done

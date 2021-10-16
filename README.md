@@ -46,9 +46,26 @@ python3 gcal_import.py \
   "$ICS_FILE_PATH_OR_URL"
 ```
 
+# Confluence calendar sync
+
+```shell
+python3 gcal_import.py \
+  --debug \
+  -c ./credentials/client_secret_blablablabla.apps.googleusercontent.com.json \
+  -t ./credentials/gcal.token \
+  -p "PROXY=socks5h://corp.acme.com:8080" \
+  --confluence-url https://confluence.acme.com \
+  --confluence-username admin \
+  --confluence-password somePAssword01 \
+  --confluence-calendars "Team Calendar" \
+  --confluence-calendars "Company events" \
+  --confluence-calendar-prefix "Work: "
+```
+
 # But why?
 
-https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
+1. https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
+2. Google Calendar seems to be unable to fetch ics files behind basic auth
 
 # TODO
 
@@ -66,3 +83,4 @@ https://groups.google.com/g/google-apps-manager/c/tgIAB35I5EE?pli=1
 - [x] Allow passing in the calendar name, instead of the ID
 - [x] Support recurring event *instances*
 - [x] Allow settings args with environment variables
+- [x] Confluence calendar sync

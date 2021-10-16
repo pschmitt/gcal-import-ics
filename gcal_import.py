@@ -280,7 +280,7 @@ def import_events(gcal, file, proxy=None, auth=None, dry_run=False):
                 )
             except Exception as exc:
                 LOGGER.error(
-                    f"Failed to find event instances for event {ical_uid}"
+                    f"Failed to find event instances for event {ical_uid}: {exc}"
                 )
                 gcal_changes.get("failed").append(ical_uid)
                 continue

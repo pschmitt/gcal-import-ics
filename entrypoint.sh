@@ -40,6 +40,37 @@ then
   IMPORT_CMD+=(--delete)
 fi
 
+# Confluence settings
+if [[ -n "$CONFLUENCE_URL" ]]
+then
+  IMPORT_CMD+=(--confluence-url "$CONFLUENCE_URL")
+fi
+
+if [[ -n "$CONFLUENCE_USERNAME" ]]
+then
+  IMPORT_CMD+=(--confluence-username "$CONFLUENCE_USERNAME")
+fi
+
+if [[ -n "$CONFLUENCE_PASSWORD" ]]
+then
+  IMPORT_CMD+=(--confluence-password "$CONFLUENCE_PASSWORD")
+fi
+
+if [[ -n "$CONFLUENCE_CALENDAR_PREFIX" ]]
+then
+  IMPORT_CMD+=(--confluence-calendar_prefix "$CONFLUENCE_CALENDAR_PREFIX")
+fi
+
+# CONFLUENCE_CALENDARS is a comma-separated list
+if [[ -n "$CONFLUENCE_CALENDARS" ]]
+then
+  readarray -d ',' -t CONFLUENCE_CALENDARS_ARRAY <<< "$CONFLUENCE_CALENDARS"
+  for c in ${CONFLUENCE_CALENDARS_ARRAY[@]}
+  do
+    IMPORT_CMD+=(--confluence-calendars "$c")
+  done
+fi
+
 # Append remaining args
 IMPORT_CMD+=("$@")
 

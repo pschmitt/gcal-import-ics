@@ -58,7 +58,7 @@ fi
 
 if [[ -n "$CONFLUENCE_CALENDAR_PREFIX" ]]
 then
-  IMPORT_CMD+=(--confluence-calendar_prefix "$CONFLUENCE_CALENDAR_PREFIX")
+  IMPORT_CMD+=(--confluence-calendar-prefix "$CONFLUENCE_CALENDAR_PREFIX")
 fi
 
 # CONFLUENCE_CALENDARS is a comma-separated list

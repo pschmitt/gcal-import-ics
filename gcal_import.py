@@ -518,7 +518,7 @@ def parse_args():
     parser.add_argument(
         "--confluence-calendars",
         required=False,
-        nargs="*",
+        action="append",
         default=[],
         help="Confluence calendar to sync",
     )

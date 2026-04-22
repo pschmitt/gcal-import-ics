@@ -1,6 +1,6 @@
 atlassian-python-api
 colorama
 coloredlogs
-gcsa>=1.2.0
+gcsa>=2.6.0
 icalendar
 requests[socks]
